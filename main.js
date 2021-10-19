@@ -1,6 +1,65 @@
-import './style.css'
+import "./style.css";
+import * as d3 from "d3";
 
-document.querySelector('#app').innerHTML = `
-  <h1>Hello Vite!</h1>
-  <a href="https://vitejs.dev/guide/features.html" target="_blank">Documentation</a>
-`
+const width = 800;
+const margin = { left: 5, top: 5, right: 100, bottom: 5 };
+const svg = d3.select("svg#chart");
+
+// setup callbacks for pressing enter on the text input and clicking submit
+const textInput = d3.select("input#query").on("keydown", (event) => {
+  if (event.key === "Enter") update();
+});
+d3.select("input#submit").on("click", () => update());
+
+const chart = svg.append("g");
+const heightPerBar = 40;
+const x = d3.scaleLinear().range([margin.left, width - margin.right]);
+const y = d3.scaleBand().paddingOuter(0).paddingInner(0.05);
+
+async function update() {
+  // get the query terms from the text input
+  const query = textInput.property("value");
+
+  // send a request to the API
+  const url = `https://www.args.me/api/v2/aspectSpace?query=${query}&format=json`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  // compute the height of the visualization dynamically
+  const height = heightPerBar * data.dimensions.length;
+  svg.attr("viewBox", [0, 0, width, height]);
+
+  // update the scales
+  x.domain([0, d3.max(data.dimensions, (d) => d.weight)]);
+  y.domain(d3.range(data.dimensions.length)).rangeRound([
+    margin.top,
+    height - margin.bottom,
+  ]);
+
+  // setup the bars
+  chart
+    .selectAll("rect")
+    .data(data.dimensions)
+    .join("rect")
+    .attr("fill", "rebeccapurple")
+    .attr("x", x(0))
+    .attr("y", (_, i) => y(i))
+    .attr("height", y.bandwidth())
+    .transition()
+    .attr("width", (d) => x(d.weight) - x(0));
+
+  // setup the labels
+  chart
+    .selectAll("text")
+    .data(data.dimensions)
+    .join("text")
+    .attr("dx", "0.6em")
+    .attr("dy", ".35em")
+    .attr("y", (_, i) => y(i) + (y.bandwidth() - 1) / 2)
+    .transition()
+    .attr("x", (d) => x(d.weight) - x(0))
+    .text((d) =>
+      // other aspects are summarized in the last element but not always present
+      d.aspects.length > 1 ? `${d.aspects.length} other` : d.aspects[0]
+    );
+}
