@@ -2,7 +2,7 @@ import "./style.css";
 import * as d3 from "d3";
 
 const width = 800;
-const margin = { left: 5, top: 5, right: 100, bottom: 5 };
+const margin = { left: 5, top: 5, right: 5, bottom: 5 };
 const svg = d3.select("svg#chart");
 
 // setup callbacks for pressing enter on the text input and clicking submit
@@ -48,16 +48,20 @@ async function update() {
     .transition()
     .attr("width", (d) => x(d.weight) - x(0));
 
+  const shortBar = (d) => x(d.weight) - x(0) < 100;
+
   // setup the labels
   chart
     .selectAll("text")
     .data(data.dimensions)
     .join("text")
-    .attr("dx", "0.6em")
     .attr("dy", ".35em")
     .attr("y", (_, i) => y(i) + (y.bandwidth() - 1) / 2)
     .transition()
+    .attr("dx", (d) => (shortBar(d) ? ".6em" : 0))
     .attr("x", (d) => x(d.weight) - x(0))
+    .attr("text-anchor", (d) => (shortBar(d) ? "start" : "end"))
+    .attr("fill", (d) => (shortBar(d) ? "black" : "white"))
     .text((d) =>
       // other aspects are summarized in the last element but not always present
       d.aspects.length > 1 ? `${d.aspects.length} other` : d.aspects[0]
