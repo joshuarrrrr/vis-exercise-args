@@ -1,7 +1,7 @@
 import "./style.css";
 import * as d3 from "d3";
 
-const width = 800;
+const width = 1000;
 const margin = { left: 5, top: 5, right: 5, bottom: 5 };
 const svg = d3.select("svg#chart");
 
@@ -12,7 +12,7 @@ const textInput = d3.select("input#query").on("keydown", (event) => {
 d3.select("input#submit").on("click", () => update());
 
 const chart = svg.append("g");
-const heightPerBar = 40;
+const heightPerBar = 32;
 const x = d3.scaleLinear().range([margin.left, width - margin.right]);
 const y = d3.scaleBand().paddingOuter(0).paddingInner(0.05);
 
