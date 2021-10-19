@@ -16,15 +16,29 @@ const heightPerBar = 32;
 const x = d3.scaleLinear().range([margin.left, width - margin.right]);
 const y = d3.scaleBand().paddingOuter(0).paddingInner(0.05);
 
+async function fetchAspects(query) {
+  const url = `https://www.args.me/api/v2/aspectSpace?query=${query}&format=json`;
+  const response = await fetch(url);
+  return await response.json();
+}
+
+async function fetchArguments(query, numItems = 10) {
+  const url = `https://www.args.me/api/v2/arguments?query=${query}&pageSize=${numItems}&format=json`;
+  const response = await fetch(url);
+  return await response.json();
+}
+
 async function update() {
   // get the query terms from the text input
   const query = textInput.property("value");
 
-  // send a request to the API
-  const url = `https://www.args.me/api/v2/aspectSpace?query=${query}&format=json`;
-  const response = await fetch(url);
-  const data = await response.json();
+  if (!query) return; // nothing to show for an empty query
 
+  fetchAspects(query).then((data) => updateBarchart(data));
+  fetchArguments(query).then((data) => updateTable(data));
+}
+
+function updateBarchart(data) {
   // compute the height of the visualization dynamically
   const height = heightPerBar * data.dimensions.length;
   svg.attr("viewBox", [0, 0, width, height]);
@@ -65,5 +79,37 @@ async function update() {
     .text((d) =>
       // other aspects are summarized in the last element but not always present
       d.aspects.length > 1 ? `${d.aspects.length} other` : d.aspects[0]
+    );
+}
+
+function updateTable(data) {
+  const columns = ["summary", "stance", "source", "aspects"];
+  const table = d3.select("table#arguments");
+  table
+    .select("thead")
+    .select("tr")
+    .selectAll("th")
+    .data(columns)
+    .join("th")
+    .text((d) => d);
+
+  const row = table
+    .select("tbody")
+    .selectAll("tr")
+    .data(data.arguments, (d) => d.id)
+    .join("tr");
+  row.append("td").text((d) => d.summary);
+  row.append("td").text((d) => d.stance);
+  row
+    .append("td")
+    .append("a")
+    .attr("href", (d) => d.context.sourceUrl)
+    .text((d) => d.context.sourceTitle);
+  row
+    .append("td")
+    .text((d) =>
+      "aspects" in d.context
+        ? d.context.aspects.map((aspect) => aspect.name).join(", ")
+        : ""
     );
 }
