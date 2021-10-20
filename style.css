@@ -1,18 +1,22 @@
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-size: 1.2rem;
   margin: 1rem;
   display: flex;
   flex-flow: column wrap;
   justify-content: space-around;
-  align-items: center;
+  align-items: left;
 }
 
 input {
-  font-size: 1.2rem;
   margin: 1rem;
   padding: 1rem;
 }
 
 svg {
   margin: 1rem;
+}
+
+table th {
+  text-align: left;
 }

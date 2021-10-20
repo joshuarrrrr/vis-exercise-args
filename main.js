@@ -16,16 +16,53 @@ const heightPerBar = 32;
 const x = d3.scaleLinear().range([margin.left, width - margin.right]);
 const y = d3.scaleBand().paddingOuter(0).paddingInner(0.05);
 
+async function fetchAspects(query) {
+  const url = `https://www.args.me/api/v2/aspectSpace?query=${query}&format=json`;
+  const response = await fetch(url);
+  return await response.json();
+}
+
+async function fetchArguments(query) {
+  // send request to the api for the actual arguments
+  // step 1: get the number of arguments for the query
+  const requestForNumOfArguments = `https://www.args.me//api/v2/arguments?query=${query}&fields=totalSize&format=json`;
+  const NOAresponse = await fetch(requestForNumOfArguments);
+  const numberOfArguments = (await NOAresponse.json()).totalSize;
+
+  // step 2: request the arguments themselves (we need several requests, since the pageSize is limited to 1000 arguments)
+  const pageSize = (numberOfArguments > 1000)?1000:numberOfArguments;
+  let pageCounter = 0;
+  const argumentList = [];
+  while(pageCounter*pageSize < numberOfArguments) {
+    const requestForPageOfArguments = `https://www.args.me//api/v2/arguments?query=${query}&fields=arguments.conclusion,arguments.premises,arguments.stance,arguments.context.aspects,arguments.explanation.score&pageSize=${pageSize}&page=${pageCounter+1}&format=json`;
+    const NOPresponse = await fetch(requestForPageOfArguments);
+    const pageOfArguments = (await NOPresponse.json()).arguments;
+    
+    for(let argument of pageOfArguments) {
+      const newForm = {conclusion: argument.conclusion,
+                       premises: argument.premises.map(text => text.text),
+                       stance: argument.stance,
+                       relevance: argument.explanation.score,
+                       aspects: (argument.context.aspects)?argument.context.aspects.map(aspect => ({name: aspect.name, weight: aspect.normalizedWeight})):[]}
+      argumentList.push(newForm);
+    }
+    pageCounter += 1;
+  }
+  console.log(argumentList);
+  return argumentList;
+}
+
 async function update() {
   // get the query terms from the text input
   const query = textInput.property("value").toLowerCase().replace(" ", "+");
 
-  // send a request for the aspect space to the API
-  const url = `https://www.args.me/api/v2/aspectSpace?query=${query}&format=json`;
-  const response = await fetch(url);
-  const data = await response.json();
-  console.log(data);
+  if (!query) return; // nothing to show for an empty query
 
+  fetchAspects(query).then((data) => updateBarchart(data));
+  fetchArguments(query).then(data => updateTable(data));
+}
+
+function updateBarchart(data) {
   // compute the height of the visualization dynamically
   const height = heightPerBar * data.dimensions.length;
   svg.attr("viewBox", [0, 0, width, height]);
@@ -68,30 +105,31 @@ async function update() {
       d.aspects.length > 1 ? `${d.aspects.length} other` : d.aspects[0]
     );
 
-  // send request to the api for the actual arguments
-  // step 1: get the number of arguments for the query
-  const requestForNumOfArguments = `https://www.args.me//api/v2/arguments?query=${query}&fields=totalSize&format=json`;
-  const NOAresponse = await fetch(requestForNumOfArguments);
-  const numberOfArguments = (await NOAresponse.json()).totalSize;
+  
+}
 
-  // step 2: request the arguments themselves (we need several requests, since the pageSize is limited to 1000 arguments)
-  const pageSize = (numberOfArguments > 1000)?1000:numberOfArguments;
-  let pageCounter = 0;
-  const argumentList = [];
-  while(pageCounter*pageSize < numberOfArguments) {
-    const requestForPageOfArguments = `https://www.args.me//api/v2/arguments?query=${query}&fields=arguments.conclusion,arguments.premises,arguments.stance,arguments.context.aspects,arguments.explanation.score&pageSize=${pageSize}&page=${pageCounter+1}&format=json`;
-    const NOPresponse = await fetch(requestForPageOfArguments);
-    const pageOfArguments = (await NOPresponse.json()).arguments;
-    
-    for(let argument of pageOfArguments) {
-      const newForm = {conclusion: argument.conclusion,
-                       premises: argument.premises.map(text => text.text),
-                       stance: argument.stance,
-                       relevance: argument.explanation.score,
-                       aspects: (argument.context.aspects)?argument.context.aspects.map(aspect => ({name: aspect.name, weight: aspect.normalizedWeight})):[]}
-      argumentList.push(newForm);
-    }
-    pageCounter += 1;
-  }
-  console.log(argumentList);
+function updateTable(data) {
+  console.log(data);
+  const columns = ["conclusion", "stance", "relevance", "aspects"];
+  const table = d3.select("table#arguments");
+  table
+    .select("thead")
+    .select("tr")
+    .selectAll("th")
+    .data(columns)
+    .join("th")
+    .text((d) => d);
+
+  const row = table
+    .select("tbody")
+    .selectAll("tr")
+    .data(data.slice(0, 10))
+    .join("tr");
+  row.append("td").text((d) => d.conclusion);
+  row.append("td").text((d) => d.stance);
+  row.append("td").text((d) => d3.format(".2f")(d.relevance));
+  row
+    .append("td")
+    .text((d) =>
+      d.aspects.map((aspect) => `${aspect.name}(${aspect.weight})`).join(", "));
 }
